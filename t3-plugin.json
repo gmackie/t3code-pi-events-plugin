@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "com.t3code.pi-events",
+  "displayName": "Lifecycle status and notifications",
+  "version": "0.1.0",
+  "runtime": { "kind": "managed-app", "command": ["pi-events-t3-plugin"], "restart": "on-failure" },
+  "contributes": {
+    "panels": [{ "id": "pi-events.status", "title": "Lifecycle status", "surface": "thread.sidePanel" }],
+    "settings": [{ "id": "pi-events.webhook", "title": "Notification webhook" }],
+    "commands": [{ "id": "pi-events.test", "title": "Send test notification" }],
+    "hooks": ["server.ready", "session.started", "turn.settled", "runtime.error"]
+  },
+  "capabilities": [
+    { "kind": "events.read", "eventTypes": ["server.ready", "session.started", "turn.settled", "runtime.error"] },
+    { "kind": "ui.embed", "surfaces": ["thread.sidePanel"] },
+    { "kind": "network.connect", "hosts": [] }
+  ]
+}
