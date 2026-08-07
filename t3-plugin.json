@@ -7,6 +7,7 @@
   "contributes": {
     "panels": [{ "id": "pi-events.status", "title": "Lifecycle status", "surface": "thread.sidePanel" }],
     "settings": [{ "id": "pi-events.webhook", "title": "Notification webhook", "scope": "server", "field": { "kind": "text", "placeholder": "https://example.test/webhook" } }],
+    "settingsPanels": [{ "id": "pi-events.settings", "title": "Pi events", "description": "Configure lifecycle notifications.", "settingIds": ["pi-events.webhook"] }],
     "commands": [{ "id": "pi-events.test", "title": "Send test notification" }],
     "hooks": ["server.ready", "session.started", "turn.settled", "runtime.error"]
   },
