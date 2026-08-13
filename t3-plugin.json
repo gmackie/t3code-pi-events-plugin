@@ -3,7 +3,7 @@
   "id": "com.t3code.pi-events",
   "displayName": "Lifecycle status and notifications",
   "version": "0.1.0",
-  "runtime": { "kind": "managed-app", "command": ["pi-events-t3-plugin"], "restart": "on-failure" },
+  "runtime": { "kind": "managed-app", "command":["bun","src/stdio.ts"], "restart": "on-failure" },
   "contributes": {
     "panels": [{ "id": "pi-events.status", "title": "Lifecycle status", "surface": "thread.sidePanel" }],
     "settings": [{ "id": "pi-events.webhook", "title": "Notification webhook", "scope": "server", "field": { "kind": "text", "placeholder": "https://example.test/webhook" } }],
