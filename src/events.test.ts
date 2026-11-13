@@ -15,4 +15,10 @@ describe("Pi-style lifecycle plugin", () => {
     expect(buffer.accept({ type: "turn.settled", sequence: 0 })).toBe(false);
     expect(buffer.accept({ type: "turn.settled", sequence: 2 })).toBe(true);
   });
+
+  it("continues from a seeded sequence", () => {
+    const buffer = new OrderedEventBuffer(5);
+    expect(buffer.accept({ type: "turn.settled", sequence: 5 })).toBe(false);
+    expect(buffer.accept({ type: "turn.settled", sequence: 6 })).toBe(true);
+  });
 });

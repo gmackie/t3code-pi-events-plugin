@@ -1,5 +1,7 @@
+export const LIFECYCLE_EVENT_TYPES = ["server.ready", "session.started", "turn.settled", "runtime.error"] as const;
+
 export type LifecycleEvent = {
-  type: "server.ready" | "session.started" | "turn.settled" | "runtime.error";
+  type: (typeof LIFECYCLE_EVENT_TYPES)[number];
   sequence: number;
   threadId?: string;
   runId?: string;
@@ -25,8 +27,14 @@ export function statusForEvent(event: LifecycleEvent): StatusContribution {
   }
 }
 
+// Accepts only strictly increasing sequence numbers. Seed it with the last
+// recorded sequence so a fresh process continues where the shared log ends.
 export class OrderedEventBuffer {
-  #lastSequence = 0;
+  #lastSequence: number;
+
+  constructor(lastSequence = 0) {
+    this.#lastSequence = lastSequence;
+  }
 
   accept(event: LifecycleEvent): boolean {
     if (!Number.isInteger(event.sequence) || event.sequence <= this.#lastSequence) return false;
