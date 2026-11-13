@@ -9,7 +9,7 @@ Since 0.2.0 the plugin is an MCP server (`src/mcp.ts`, stdio) described by a v2 
 It's a stdio server on the official MCP TypeScript SDK v2 (`@modelcontextprotocol/server`). The view is an MCP App: a `ui://` HTML resource with the `text/html;profile=mcp-app` MIME type.
 
 - `pi_events_status` returns the current status and recent events, optionally for one thread, and renders `ui://pi-events/status.html`.
-- `pi_events_record` records a lifecycle event in the shared log and notifies the webhook. T3 no longer pushes lifecycle hooks to plugins, so agents report events through this tool.
+- `pi_events_record` records a lifecycle event in the shared log and notifies the webhook. T3 no longer pushes lifecycle hooks to plugins, so agents report events through this tool. The log numbers events itself; pass an optional `dedupeKey` (unique per event within its thread) to make a retry a no-op.
 - `pi_events_send_test` sends a test notification and reports whether it was delivered.
 
 The `pi-events-status` panel is thread-scoped. It follows `hostContext.t3.threadId` and refreshes every 30 seconds while visible. The command **Pi events: Open lifecycle status** opens it, and its **Send test notification** button replaces the v1 command.

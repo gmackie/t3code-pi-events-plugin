@@ -32,8 +32,9 @@ The v1 manifest's last version is on `master` before this change.
 
 v1 asked T3 to push four lifecycle hooks into the plugin. v2 has no hooks and T3 has no MCP tool that reads them, so the plugin cannot observe them by itself any more. Instead:
 
-- `pi_events_record` (`type`, optional `threadId`, `runId`, `message`, `sequence`) appends an event to the shared log and POSTs it to the webhook. Its server `instructions` ask agents to report `session.started`, `turn.settled` and `runtime.error`.
-- The optional `sequence` keeps v1's ordering guarantee (`OrderedEventBuffer`): an event at or below the last recorded sequence is ignored and not notified, so a retried delivery is safe.
+- `pi_events_record` (`type`, optional `threadId`, `runId`, `message`, `dedupeKey`) appends an event to the shared log and POSTs it to the webhook. Its server `instructions` ask agents to report `session.started`, `turn.settled` and `runtime.error`.
+- The log always assigns `sequence` itself, so it orders events by when they were recorded. v1's ordering guarantee (`OrderedEventBuffer`, checking a sequence T3 assigned from its own event stream) has no equivalent: no caller has a sequence that spans every session, so `OrderedEventBuffer` was removed.
+- For safe retries, a caller passes an optional `dedupeKey`, unique per event within its thread (for example the run id plus the event type). A repeat with the same `threadId` and `dedupeKey` is ignored and not notified, as long as the original is still among the 200 retained events.
 - `server.ready` is no longer emitted automatically. Anything can still report it.
 
 This is weaker than v1: the log only holds what agents report. Status in the panel is therefore "last reported", never inferred.

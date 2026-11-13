@@ -70,13 +70,13 @@ export function createPiEventsMcpServer(options: PiEventsServerOptions): McpServ
     {
       title: "Record lifecycle event",
       description:
-        "Record a lifecycle event in the shared log and notify the configured webhook. Pass sequence only to make retries safe: an event at or below the last recorded sequence is ignored and not notified.",
+        "Record a lifecycle event in the shared log and notify the configured webhook. The log assigns the sequence. To make retries safe, pass a dedupeKey unique to this event within its thread (for example the run id plus the event type): a repeat with the same threadId and dedupeKey is ignored and not notified.",
       inputSchema: z.object({
         type: z.enum(LIFECYCLE_EVENT_TYPES),
         threadId: threadId.optional().describe("T3 thread id the event belongs to"),
         runId: z.string().min(1).max(200).optional().describe("Run or turn id, shown for turn.settled"),
         message: z.string().min(1).max(4000).optional().describe("Error message for runtime.error (shown up to 240 characters)"),
-        sequence: z.number().int().positive().optional().describe("Caller-assigned sequence for idempotent delivery"),
+        dedupeKey: z.string().min(1).max(200).optional().describe("Idempotency key, unique per event within its thread; a repeat is ignored"),
       }),
       annotations: { idempotentHint: false, openWorldHint: true },
     },
@@ -85,8 +85,8 @@ export function createPiEventsMcpServer(options: PiEventsServerOptions): McpServ
         const appended = store.append(args);
         if (!appended.accepted) {
           return {
-            data: { accepted: false, lastSequence: appended.lastSequence },
-            text: `Ignored: sequence ${args.sequence} is not after the last recorded sequence ${appended.lastSequence}.`,
+            data: { accepted: false, duplicateOf: appended.duplicateOf },
+            text: `Ignored: dedupeKey ${args.dedupeKey} was already recorded as #${appended.duplicateOf}. Webhook not notified again.`,
           };
         }
         const { event } = appended;

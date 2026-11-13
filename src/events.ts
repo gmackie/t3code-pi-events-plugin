@@ -26,19 +26,3 @@ export function statusForEvent(event: LifecycleEvent): StatusContribution {
       return { label: "Runtime error", tone: "negative", ...(event.message ? { detail: event.message.slice(0, 240) } : {}) };
   }
 }
-
-// Accepts only strictly increasing sequence numbers. Seed it with the last
-// recorded sequence so a fresh process continues where the shared log ends.
-export class OrderedEventBuffer {
-  #lastSequence: number;
-
-  constructor(lastSequence = 0) {
-    this.#lastSequence = lastSequence;
-  }
-
-  accept(event: LifecycleEvent): boolean {
-    if (!Number.isInteger(event.sequence) || event.sequence <= this.#lastSequence) return false;
-    this.#lastSequence = event.sequence;
-    return true;
-  }
-}

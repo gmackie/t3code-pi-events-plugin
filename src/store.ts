@@ -2,11 +2,13 @@ import { Database } from "bun:sqlite";
 import { mkdirSync } from "node:fs";
 import { dirname } from "node:path";
 
-import { OrderedEventBuffer, type LifecycleEvent } from "./events.ts";
+import type { LifecycleEvent } from "./events.ts";
 
 export type RecordedEvent = LifecycleEvent & { recordedAt: string };
 
-export type AppendResult = { accepted: true; event: RecordedEvent } | { accepted: false; lastSequence: number };
+export type AppendResult = { accepted: true; event: RecordedEvent } | { accepted: false; duplicateOf: number };
+
+export type AppendInput = Omit<LifecycleEvent, "sequence"> & { dedupeKey?: string };
 
 // How many events the shared log keeps; older ones are pruned on append.
 export const RETAINED_EVENTS = 200;
@@ -25,29 +27,41 @@ export class EventStore {
     this.#db.exec("PRAGMA journal_mode = WAL");
     this.#db.exec("PRAGMA busy_timeout = 5000");
     this.#db.exec(
-      "CREATE TABLE IF NOT EXISTS lifecycle_events (sequence INTEGER PRIMARY KEY, type TEXT NOT NULL, thread_id TEXT, run_id TEXT, message TEXT, recorded_at TEXT NOT NULL)",
+      "CREATE TABLE IF NOT EXISTS lifecycle_events (sequence INTEGER PRIMARY KEY, type TEXT NOT NULL, thread_id TEXT, run_id TEXT, message TEXT, recorded_at TEXT NOT NULL, dedupe_key TEXT)",
     );
+    // Logs written before dedupe keys existed lack the column.
+    const columns = this.#db.query<{ name: string }, []>("PRAGMA table_info(lifecycle_events)").all();
+    if (!columns.some((column) => column.name === "dedupe_key")) this.#db.exec("ALTER TABLE lifecycle_events ADD COLUMN dedupe_key TEXT");
+    this.#db.exec("CREATE UNIQUE INDEX IF NOT EXISTS lifecycle_events_dedupe ON lifecycle_events (COALESCE(thread_id, ''), dedupe_key) WHERE dedupe_key IS NOT NULL");
   }
 
-  // Assigns the next sequence, or checks a caller's sequence so a retried
-  // delivery is not recorded (or notified) twice. IMMEDIATE serializes copies.
-  append(event: Omit<LifecycleEvent, "sequence"> & { sequence?: number }): AppendResult {
+  // Always assigns the next sequence itself. A caller's dedupeKey, unique per
+  // thread, makes a retried delivery a no-op (not recorded or notified twice)
+  // for as long as the original event is retained. IMMEDIATE serializes copies.
+  append(event: AppendInput): AppendResult {
     return this.#db
       .transaction((): AppendResult => {
-        const lastSequence = this.lastSequence();
+        if (event.dedupeKey !== undefined) {
+          const existing = this.#db
+            .query<{ sequence: number }, [string, string]>("SELECT sequence FROM lifecycle_events WHERE COALESCE(thread_id, '') = ? AND dedupe_key = ?")
+            .get(event.threadId ?? "", event.dedupeKey);
+          if (existing) return { accepted: false, duplicateOf: existing.sequence };
+        }
         const recorded: RecordedEvent = {
           type: event.type,
-          sequence: event.sequence ?? lastSequence + 1,
+          sequence: this.lastSequence() + 1,
           ...(event.threadId ? { threadId: event.threadId } : {}),
           ...(event.runId ? { runId: event.runId } : {}),
           ...(event.message ? { message: event.message } : {}),
           recordedAt: new Date().toISOString(),
         };
-        if (!new OrderedEventBuffer(lastSequence).accept(recorded)) return { accepted: false, lastSequence };
         this.#db
-          .query("INSERT INTO lifecycle_events (sequence, type, thread_id, run_id, message, recorded_at) VALUES (?, ?, ?, ?, ?, ?)")
-          .run(recorded.sequence, recorded.type, recorded.threadId ?? null, recorded.runId ?? null, recorded.message ?? null, recorded.recordedAt);
-        this.#db.query("DELETE FROM lifecycle_events WHERE sequence <= ?").run(recorded.sequence - RETAINED_EVENTS);
+          .query("INSERT INTO lifecycle_events (sequence, type, thread_id, run_id, message, recorded_at, dedupe_key) VALUES (?, ?, ?, ?, ?, ?, ?)")
+          .run(recorded.sequence, recorded.type, recorded.threadId ?? null, recorded.runId ?? null, recorded.message ?? null, recorded.recordedAt, event.dedupeKey ?? null);
+        // Prune by count, keeping the newest RETAINED_EVENTS rows.
+        this.#db
+          .query("DELETE FROM lifecycle_events WHERE sequence NOT IN (SELECT sequence FROM lifecycle_events ORDER BY sequence DESC LIMIT ?)")
+          .run(RETAINED_EVENTS);
         return { accepted: true, event: recorded };
       })
       .immediate();

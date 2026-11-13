@@ -63,10 +63,10 @@ describe("pi-events MCP server", () => {
   it("ignores duplicate deliveries without notifying twice", async () => {
     hook = fakeWebhook();
     const { client } = await connectedClient({ webhookUrl: hook.url });
-    expect((await call(client, "pi_events_record", { type: "server.ready", sequence: 7 })).structuredContent).toMatchObject({ accepted: true });
-    const retried = await call(client, "pi_events_record", { type: "server.ready", sequence: 7 });
+    expect((await call(client, "pi_events_record", { type: "server.ready", dedupeKey: "boot-1" })).structuredContent).toMatchObject({ accepted: true, event: { sequence: 1 } });
+    const retried = await call(client, "pi_events_record", { type: "server.ready", dedupeKey: "boot-1" });
     expect(retried.isError).toBeFalsy();
-    expect(retried.structuredContent).toEqual({ accepted: false, lastSequence: 7 });
+    expect(retried.structuredContent).toEqual({ accepted: false, duplicateOf: 1 });
     expect(hook.received).toHaveLength(1);
   });
 
